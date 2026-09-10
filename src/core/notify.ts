@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { daysBetween, isoDate, nextDueDate } from './dates';
+import { dailyIdea } from './ideas';
 import { formatMoney } from './money';
 import { t } from '@/i18n';
 import { listLoans } from '@/db/repos';
@@ -72,6 +73,23 @@ export async function syncReminders(db: SQLiteDatabase): Promise<void> {
   const today = isoDate();
   for (const loan of actives) {
     await scheduleForLoan(loan, today, settings.currency);
+  }
+
+  // 7pm: daily side-income idea, tied to the top-priority loan (Q25–28)
+  const idea = dailyIdea(settings.skills, loans, today);
+  if (idea) {
+    const earn = formatMoney(idea.earn, settings.currency, { compact: true });
+    const link = !idea.loanName
+      ? ''
+      : idea.coversFull
+        ? ` ${t('idea.linkFull', { earn, loan: idea.loanName })}`
+        : ` ${t('idea.link', { earn, loan: idea.loanName, pct: idea.coversPct })}`;
+    await schedule(t('notif.idea'), `${t(`idea.${idea.skillKey}`)}${link}`, {
+      type: DAILY,
+      hour: 19,
+      minute: 0,
+      channelId: CHANNEL,
+    });
   }
 }
 

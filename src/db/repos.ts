@@ -428,4 +428,35 @@ export async function getShortMonthReason(
   return r?.reason_key ?? null;
 }
 
+// ---------- M3: category month-start answers (grocery memory) ----------
+
+export async function saveCategoryAnswer(
+  db: SQLiteDatabase,
+  month: string,
+  categoryId: number,
+  answerKey: string,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO category_answers (month, category_id, answer_key, created_at) VALUES (?,?,?,?)
+     ON CONFLICT(month, category_id) DO UPDATE SET answer_key = excluded.answer_key`,
+    month,
+    categoryId,
+    answerKey,
+    isoDate(),
+  );
+}
+
+export async function getCategoryAnswer(
+  db: SQLiteDatabase,
+  month: string,
+  categoryId: number,
+): Promise<string | null> {
+  const r = await db.getFirstAsync<{ answer_key: string }>(
+    'SELECT answer_key FROM category_answers WHERE month = ? AND category_id = ?',
+    month,
+    categoryId,
+  );
+  return r?.answer_key ?? null;
+}
+
 export { monthOf };

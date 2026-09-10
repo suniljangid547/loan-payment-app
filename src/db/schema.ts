@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 2;
+export const DATABASE_VERSION = 3;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS persons (
@@ -108,6 +108,17 @@ CREATE TABLE IF NOT EXISTS short_months (
 );
 `;
 
+const SCHEMA_V3 = `
+CREATE TABLE IF NOT EXISTS category_answers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  month TEXT NOT NULL,
+  category_id INTEGER NOT NULL REFERENCES expense_categories(id) ON DELETE CASCADE,
+  answer_key TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(month, category_id)
+);
+`;
+
 export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   let version = row?.user_version ?? 0;
@@ -129,6 +140,10 @@ ${SCHEMA_V1}`);
   if (version === 1) {
     await db.execAsync(SCHEMA_V2);
     version = 2;
+  }
+  if (version === 2) {
+    await db.execAsync(SCHEMA_V3);
+    version = 3;
   }
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }

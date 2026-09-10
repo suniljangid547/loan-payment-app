@@ -4,6 +4,8 @@ import { buildPlan } from '../src/core/plan';
 import { interestDue, interestSavedWithExtra, projectPayoff, stepPayment } from '../src/core/interest';
 import { rankLoans } from '../src/core/priority';
 import { spendingCoach, type CoachCategoryInput } from '../src/core/coach';
+import { dailyIdea, SKILL_KEYS } from '../src/core/ideas';
+import { groceryMemory } from '../src/core/grocery';
 import type { LoanRow } from '../src/core/types';
 
 const base: LoanRow = {
@@ -142,5 +144,53 @@ assert.strictEqual(spendingCoach(noBudget, [freeLoan], '2026-10-01'), null);
 // over-budget nudge still fires with a 0% loan (budget discipline), just without impact lines
 const coachFree = spendingCoach(cats, [freeLoan], '2026-10-01');
 assert.ok(coachFree && coachFree.kind === 'over' && coachFree.interestSaved === 0);
+
+// daily idea: deterministic rotation + loan tie-in
+assert.strictEqual(dailyIdea([], [base], '2026-10-01'), null);
+const ideaA = dailyIdea(['driving', 'tuition'], [base], '2026-10-01');
+const ideaA2 = dailyIdea(['driving', 'tuition'], [base], '2026-10-01');
+assert.ok(ideaA && ideaA2 && ideaA.skillKey === ideaA2.skillKey, 'same day must give the same idea');
+assert.ok(SKILL_KEYS.includes(ideaA.skillKey));
+// sekda: monthly interest 2000, driving earn 300000 paise → covers fully
+const ideaDriving = dailyIdea(['driving'], [base], '2026-10-01');
+assert.ok(ideaDriving && ideaDriving.coversFull && ideaDriving.coversPct === 100);
+// big loan interest → partial cover pct
+const bigSekda: LoanRow = { ...base, principal_remaining: 25000000 }; // 2% = 500000/mo
+const ideaPartial = dailyIdea(['driving'], [bigSekda], '2026-10-01');
+assert.ok(ideaPartial && !ideaPartial.coversFull && ideaPartial.coversPct === 60);
+// unknown skills ignored
+assert.strictEqual(dailyIdea(['astronaut'], [base], '2026-10-01'), null);
+
+// grocery memory: month-start window, answered/budget/small-spend suppression
+const gmOk = groceryMemory({
+  categoryId: 1,
+  lastMonthSpent: 620000,
+  hasBudgetThisMonth: false,
+  answeredThisMonth: false,
+  todayIso: '2026-10-03',
+});
+assert.ok(gmOk);
+assert.strictEqual(gmOk.suggestedSame, 620000);
+assert.strictEqual(gmOk.suggestedHalf, 310000);
+assert.strictEqual(
+  groceryMemory({ categoryId: 1, lastMonthSpent: 620000, hasBudgetThisMonth: false, answeredThisMonth: false, todayIso: '2026-10-09' }),
+  null,
+  'outside month-start window',
+);
+assert.strictEqual(
+  groceryMemory({ categoryId: 1, lastMonthSpent: 620000, hasBudgetThisMonth: false, answeredThisMonth: true, todayIso: '2026-10-03' }),
+  null,
+  'already answered',
+);
+assert.strictEqual(
+  groceryMemory({ categoryId: 1, lastMonthSpent: 620000, hasBudgetThisMonth: true, answeredThisMonth: false, todayIso: '2026-10-03' }),
+  null,
+  'budget already set',
+);
+assert.strictEqual(
+  groceryMemory({ categoryId: 1, lastMonthSpent: 50000, hasBudgetThisMonth: false, answeredThisMonth: false, todayIso: '2026-10-03' }),
+  null,
+  'history too small',
+);
 
 console.log('core engine tests passed ✓');

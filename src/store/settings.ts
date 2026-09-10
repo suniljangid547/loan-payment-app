@@ -27,6 +27,8 @@ export interface PersistedSettings {
   insuranceDismissed: boolean;
   /** minor units; null = auto (one month of essentials) */
   fundTarget: number | null;
+  /** side-income skill keys (SkillKey in core/ideas) */
+  skills: string[];
 }
 
 const KEY = 'loanpay.settings.v1';
@@ -66,6 +68,7 @@ const DEFAULTS: PersistedSettings = {
   hasInsurance: null,
   insuranceDismissed: false,
   fundTarget: null,
+  skills: [],
 };
 
 function load(): PersistedSettings {

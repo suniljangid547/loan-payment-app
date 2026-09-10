@@ -240,11 +240,14 @@ export function Chips<T extends string>({
   value,
   onChange,
   label,
+  values,
 }: {
   options: { value: T; label: string }[];
-  value: T | undefined;
+  value?: T | undefined;
   onChange: (v: T) => void;
   label?: string;
+  /** multi-select mode: `values` is the current selection, onChange receives the tapped chip */
+  values?: T[] | undefined;
 }) {
   const colors = useTheme();
   return (
@@ -256,7 +259,7 @@ export function Chips<T extends string>({
       ) : null}
       <View style={styles.chipRow}>
         {options.map((o) => {
-          const selected = value === o.value;
+          const selected = values ? values.includes(o.value) : value === o.value;
           return (
             <Pressable
               key={o.value}

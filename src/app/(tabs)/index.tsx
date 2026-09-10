@@ -10,6 +10,8 @@ import { LoanListRow } from '@/components/loan-list-row';
 import { Badge, Button, Card, EmptyState, Money, ProgressBar, SectionHeader, StatTile } from '@/components/ui';
 import { addMonths, daysBetween, isoDate, monthOf } from '@/core/dates';
 import { spendingCoach } from '@/core/coach';
+import { dailyIdea } from '@/core/ideas';
+import { groceryMemory } from '@/core/grocery';
 import { baselinePayment, projectPayoff } from '@/core/interest';
 import { formatMoney, toMinor } from '@/core/money';
 import { rankLoans } from '@/core/priority';
@@ -19,9 +21,13 @@ import {
   addFundTxn,
   debtTotals,
   fundBalance,
+  getCategoryAnswer,
   incomeTotal,
+  listCategories,
   listLoans,
   monthSpendSummary,
+  saveCategoryAnswer,
+  upsertBudget,
 } from '@/db/repos';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
@@ -31,7 +37,8 @@ export default function DashboardScreen() {
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const colors = useTheme();
-  const { onboarded, name, currency, hasInsurance, insuranceDismissed, fundTarget } = useSettings();
+  const { onboarded, name, currency, hasInsurance, insuranceDismissed, fundTarget, skills } =
+    useSettings();
   const update = useSettings((s) => s.update);
   const today = isoDate();
   const month = monthOf(today);
@@ -44,7 +51,23 @@ export default function DashboardScreen() {
     const spendRows = await monthSpendSummary(db, month);
     const spent = spendRows.reduce((s, r) => s + r.spent, 0);
     const fund = await fundBalance(db);
-    return { loans, totals, income, spendRows, spent, fund };
+    const groceryCat = (await listCategories(db)).find((c) => c.name_key === 'cat.groceries');
+    let grocery: { id: number; lastSpent: number; hasBudget: boolean; answered: boolean } | null =
+      null;
+    if (groceryCat) {
+      const prevMonth = monthOf(addMonths(`${month}-01`, -1));
+      const [prevRows, answer] = await Promise.all([
+        monthSpendSummary(db, prevMonth),
+        getCategoryAnswer(db, month, groceryCat.id),
+      ]);
+      grocery = {
+        id: groceryCat.id,
+        lastSpent: prevRows.find((r) => r.category_id === groceryCat.id)?.spent ?? 0,
+        hasBudget: spendRows.find((r) => r.category_id === groceryCat.id)?.limit_amount != null,
+        answered: answer !== null,
+      };
+    }
+    return { loans, totals, income, spendRows, spent, fund, grocery };
   }, [db, month]);
 
   useFocusEffect(
@@ -84,6 +107,22 @@ export default function DashboardScreen() {
       ? t(coach.categoryLabelKey)
       : (coach.categoryLabel ?? t('cat.other'))
     : null;
+  const grocerySuggestion = data?.grocery
+    ? groceryMemory({
+        categoryId: data.grocery.id,
+        lastMonthSpent: data.grocery.lastSpent,
+        hasBudgetThisMonth: data.grocery.hasBudget,
+        answeredThisMonth: data.grocery.answered,
+        todayIso: today,
+      })
+    : null;
+  const idea = dailyIdea(skills, loans, today);
+  const answerGrocery = async (answerKey: 'half' | 'all', amount: number) => {
+    if (!data?.grocery) return;
+    await saveCategoryAnswer(db, month, data.grocery.id, answerKey);
+    await upsertBudget(db, month, data.grocery.id, amount);
+    reload();
+  };
   const addFund = async () => {
     const amt = toMinor(fundStr, currency);
     if (amt <= 0) return;
@@ -156,6 +195,39 @@ export default function DashboardScreen() {
               {t('ins.free')}
             </ThemedText>
             <Button label={t('ins.cta')} variant="ghost" size="sm" onPress={() => update({ insuranceDismissed: true })} />
+          </Card>
+        ) : null}
+
+        {grocerySuggestion ? (
+          <Card>
+            <ThemedText type="smallBold" style={{ color: colors.accent, fontSize: 15 }}>
+              🛒 {t('gm.title')}
+            </ThemedText>
+            <ThemedText type="small" style={{ color: colors.text }}>
+              {t('gm.last', { amt: formatMoney(grocerySuggestion.lastSpent, currency) })}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {t('gm.q')}
+            </ThemedText>
+            <View style={styles.quickRow}>
+              <Button
+                label={t('gm.yes', {
+                  amt: formatMoney(grocerySuggestion.suggestedHalf, currency, { compact: true }),
+                })}
+                size="sm"
+                style={{ flex: 1 }}
+                onPress={() => answerGrocery('half', grocerySuggestion.suggestedHalf)}
+              />
+              <Button
+                label={t('gm.no', {
+                  amt: formatMoney(grocerySuggestion.suggestedSame, currency, { compact: true }),
+                })}
+                variant="secondary"
+                size="sm"
+                style={{ flex: 1 }}
+                onPress={() => answerGrocery('all', grocerySuggestion.suggestedSame)}
+              />
+            </View>
           </Card>
         ) : null}
 
@@ -236,6 +308,34 @@ export default function DashboardScreen() {
             </ThemedText>
           ) : null}
         </Card>
+
+        {idea ? (
+          <Card>
+            <ThemedText type="smallBold" style={{ color: colors.accent, fontSize: 15 }}>
+              💼 {t('idea.card')}
+            </ThemedText>
+            <ThemedText type="small" style={{ color: colors.text }}>
+              {t(`idea.${idea.skillKey}`)}
+            </ThemedText>
+            {idea.loanName ? (
+              <ThemedText type="smallBold" style={{ color: colors.text }}>
+                {idea.coversFull
+                  ? t('idea.linkFull', {
+                      earn: formatMoney(idea.earn, currency, { compact: true }),
+                      loan: idea.loanName,
+                    })
+                  : t('idea.link', {
+                      earn: formatMoney(idea.earn, currency, { compact: true }),
+                      loan: idea.loanName,
+                      pct: idea.coversPct,
+                    })}
+              </ThemedText>
+            ) : null}
+            <ThemedText type="small" themeColor="textSecondary">
+              {t('idea.disc')}
+            </ThemedText>
+          </Card>
+        ) : null}
 
         {actives.length === 0 ? (
           <EmptyState

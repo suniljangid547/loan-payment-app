@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chips, Field, Select } from '@/components/ui';
+import { SKILL_KEYS, type SkillKey } from '@/core/ideas';
 import { Spacing } from '@/constants/theme';
 import { ensureSelfPerson } from '@/db/repos';
 import i18n from '@/i18n';
@@ -26,11 +27,12 @@ export default function OnboardingScreen() {
   const colors = useTheme();
   const update = useSettings((s) => s.update);
 
-  const [step, setStep] = useState<0 | 1>(0);
+  const [step, setStep] = useState<0 | 1 | 2>(0);
   const [country, setCountry] = useState<string>('IN');
   const [language, setLanguage] = useState<Language>('en');
   const [name, setName] = useState('');
   const [insurance, setInsurance] = useState<'yes' | 'no' | null>(null);
+  const [skills, setSkills] = useState<SkillKey[]>([]);
   const [busy, setBusy] = useState(false);
 
   const countryDef = countryByCode(country);
@@ -67,6 +69,7 @@ export default function OnboardingScreen() {
         country,
         currency: currencyForCountry(country),
         hasInsurance: insurance === 'yes',
+        skills,
       });
       router.replace('/(tabs)');
     } finally {
@@ -88,7 +91,7 @@ export default function OnboardingScreen() {
       </ThemedText>
 
       <View style={styles.dots}>
-        {[0, 1].map((i) => (
+        {[0, 1, 2].map((i) => (
           <View
             key={i}
             style={[
@@ -118,7 +121,7 @@ export default function OnboardingScreen() {
             options={langOptions}
           />
         </Card>
-      ) : (
+      ) : step === 1 ? (
         <Card style={{ marginTop: Spacing.two }}>
           <Field
             label={t('onb.nameLabel')}
@@ -138,12 +141,26 @@ export default function OnboardingScreen() {
             ]}
           />
         </Card>
+      ) : (
+        <Card style={{ marginTop: Spacing.two }}>
+          <Chips<SkillKey>
+            label={t('onb.skills')}
+            values={skills}
+            onChange={(v) =>
+              setSkills((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v]))
+            }
+            options={SKILL_KEYS.map((k) => ({ value: k, label: t(`skill.${k}`) }))}
+          />
+          <ThemedText type="small" themeColor="textSecondary">
+            {t('onb.skillsSub')}
+          </ThemedText>
+        </Card>
       )}
 
       <View style={styles.actions}>
-        {step === 1 ? (
+        {step > 0 ? (
           <Pressable
-            onPress={() => setStep(0)}
+            onPress={() => setStep((s) => (s - 1) as 0 | 1 | 2)}
             hitSlop={12}
             accessibilityRole="button"
             style={styles.backBtn}>
@@ -153,8 +170,8 @@ export default function OnboardingScreen() {
         ) : (
           <View />
         )}
-        {step === 0 ? (
-          <Button label={t('common.next')} onPress={() => setStep(1)} style={{ minWidth: 120 }} />
+        {step < 2 ? (
+          <Button label={t('common.next')} onPress={() => setStep((s) => (s + 1) as 1 | 2)} style={{ minWidth: 120 }} />
         ) : (
           <Button label={t('onb.start')} onPress={start} loading={busy} style={{ minWidth: 120 }} />
         )}
