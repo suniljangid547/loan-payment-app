@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ScrollView, Share, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useTranslation } from 'react-i18next';
@@ -79,6 +79,56 @@ export default function PlanScreen() {
       ]
     : [];
 
+  const buildShareMessage = (): string => {
+    const allLoans = loans ?? [];
+    const remaining = actives.reduce((s, l) => s + l.principal_remaining, 0);
+    const borrowed = allLoans.reduce((s, l) => s + l.principal_total, 0);
+    const lines: string[] = [];
+    if (remaining > 0) {
+      lines.push(
+        t('share.debt', {
+          amt: formatMoney(remaining, currency),
+          pct: borrowed > 0 ? Math.round((1 - remaining / borrowed) * 100) : 0,
+        }),
+      );
+    }
+    if (ranked.length > 0) {
+      lines.push(t('share.priorities'));
+      ranked.slice(0, 3).forEach((r, i) => {
+        lines.push(
+          t('share.item', {
+            n: i + 1,
+            name: r.loan.name,
+            reason: r.reasons.map((k) => t(k)).join(', ') || formatMoney(r.monthlyInterest, currency),
+          }),
+        );
+      });
+    }
+    if (plan) {
+      lines.push(
+        t('share.projection', {
+          c: plan.clearedCount,
+          t: plan.totalCount,
+          n: plan.cappedAt,
+          int: formatMoney(plan.totalInterest, currency),
+        }),
+      );
+      if (interestSaved !== null) {
+        lines.push(t('share.saved', { amt: formatMoney(interestSaved, currency) }));
+      }
+    }
+    lines.push(t('share.footer'));
+    return lines.join('\n');
+  };
+
+  const sharePlan = async () => {
+    try {
+      await Share.share({ message: buildShareMessage() });
+    } catch {
+      // user cancelled the share sheet
+    }
+  };
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -98,6 +148,9 @@ export default function PlanScreen() {
           <Switch value={redirect} onValueChange={setRedirect} trackColor={{ true: colors.accent }} />
         </View>
         <Button label={t('plan.run')} onPress={runPlan} disabled={actives.length === 0} />
+        {actives.length > 0 ? (
+          <Button label={t('share.plan')} variant="secondary" onPress={() => void sharePlan()} />
+        ) : null}
       </Card>
 
       <SectionHeader title={t('plan.priority')} />
