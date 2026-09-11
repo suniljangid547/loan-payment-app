@@ -15,6 +15,8 @@ export interface PlanLoanRow {
 export interface MonthSlice {
   month: string; // YYYY-MM
   payments: { loanId: number; amount: number }[];
+  /** total debt (all loans) remaining at the end of this month */
+  totalRemaining: number;
 }
 
 export interface PlanResult {
@@ -98,7 +100,11 @@ export function buildPlan(
         }
       }
     }
-    months.push({ month: monthOf(addMonths(today, m)), payments });
+    months.push({
+      month: monthOf(addMonths(today, m)),
+      payments,
+      totalRemaining: [...state.values()].reduce((s, l) => s + l.principal_remaining, 0),
+    });
   }
 
   const rows = [...stats.values()];

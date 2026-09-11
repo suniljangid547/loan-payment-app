@@ -94,6 +94,19 @@ assert.ok(spent <= 15000 * 12 + 1, `spent=${spent}`);
 const cardRow = plan.rows.find((r) => r.loanId === card.id)!;
 assert.ok(cardRow.payoffMonth !== null, 'card should clear within 12 at 15k/mo');
 
+// monthly totalRemaining must fall monotonically and reconcile with principal paid
+const totalStart = plan.rows.reduce((s, r) => s + r.startBalance, 0);
+let prev = totalStart;
+for (const m of plan.months) {
+  assert.ok(m.totalRemaining <= prev, `debt must not grow: ${prev} -> ${m.totalRemaining}`);
+  prev = m.totalRemaining;
+}
+const totalPrincipal = plan.rows.reduce((s, r) => s + r.principalPaid, 0);
+assert.ok(
+  Math.abs(plan.months[plan.months.length - 1].totalRemaining - (totalStart - totalPrincipal)) < 1,
+  'final balance must reconcile with principal paid',
+);
+
 // spending coach: over-budget category wins, cut = spent - limit
 const cats: CoachCategoryInput[] = [
   { category_id: 1, category_name: 'Groceries', category_name_key: 'cat.groceries', is_fixed: 0, spent: 800000, limit_amount: 500000 },

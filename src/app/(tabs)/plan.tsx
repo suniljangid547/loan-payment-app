@@ -7,7 +7,8 @@ import { useTranslation } from 'react-i18next';
 
 import { Button, Card, Field, SectionHeader } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
-import { isoDate } from '@/core/dates';
+import { BalanceChart, type ChartPoint } from '@/components/chart';
+import { addMonths, isoDate } from '@/core/dates';
 import { baselinePayment } from '@/core/interest';
 import { fromMinor, formatMoney, toMinor } from '@/core/money';
 import { buildPlan, type PlanResult } from '@/core/plan';
@@ -51,6 +52,32 @@ export default function PlanScreen() {
     if (available <= 0 || actives.length === 0) return;
     setPlan(buildPlan(loans ?? [], available, { redirectFreedEmis: redirect, horizon: 12 }));
   };
+
+  // interest saved vs paying only the unavoidable minimums (same 12-month window)
+  const interestSaved = (() => {
+    if (!plan) return null;
+    const baseTotal = actives.reduce((s, l) => s + baselinePayment(l), 0);
+    if (baseTotal <= 0 || baseTotal >= toMinor(availValue, currency)) return null;
+    const minOnly = buildPlan(loans ?? [], baseTotal, {
+      redirectFreedEmis: false,
+      horizon: 12,
+    });
+    const saved = minOnly.totalInterest - plan.totalInterest;
+    return saved > 0 ? saved : null;
+  })();
+
+  const projection: ChartPoint[] = plan
+    ? [
+        {
+          t: Date.parse(isoDate()),
+          v: plan.rows.reduce((s, r) => s + r.startBalance, 0),
+        },
+        ...plan.months.map((m, i) => ({
+          t: Date.parse(addMonths(isoDate(), i + 1)),
+          v: m.totalRemaining,
+        })),
+      ]
+    : [];
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
@@ -106,6 +133,18 @@ export default function PlanScreen() {
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {t('plan.totalInterest', { amt: formatMoney(plan.totalInterest, currency) })}
+            </ThemedText>
+            {interestSaved !== null ? (
+              <ThemedText type="smallBold" style={{ color: colors.success }}>
+                {t('plan.interestSaved', { amt: formatMoney(interestSaved, currency, { compact: true }) })}
+              </ThemedText>
+            ) : null}
+          </Card>
+          <Card>
+            <SectionHeader title={t('plan.chart')} />
+            <BalanceChart points={projection} />
+            <ThemedText type="small" themeColor="textSecondary">
+              {t('plan.chartSub')}
             </ThemedText>
           </Card>
           {plan.rows.map((row) => (
