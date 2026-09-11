@@ -113,6 +113,6 @@ loan,udhaar,karz,byaj,interest,emi,sekda,debt,repayment,hisaab,khata,paisa,loan 
 
 ## Submission notes
 
+- **Privacy policy URL (required):** https://suniljangid547.github.io/loan-payment-app/privacy-policy.html (GitHub Pages, served from `docs/` in this repo) — also linked from Profile → About in the app
 - Play: create app → set Data safety per table above → upload AAB (`eas build -p android --profile production`) → complete content rating questionnaire (Finance, no gambling) → internal testing track first (20–30 borrowers per PLAN open question #4)
 - App Store: needs Apple Developer account + `eas build -p ios`; TestFlight beta first
-- Privacy policy URL required by both stores — host a static page summarizing the "no data leaves the phone" policy (can be a GitHub Pages file in this repo)

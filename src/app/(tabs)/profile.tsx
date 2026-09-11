@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useTranslation } from 'react-i18next';
@@ -31,6 +31,8 @@ const ALL_LANGS: LangDef[] = Object.values(
     return acc;
   }, {}),
 );
+
+const PRIVACY_URL = 'https://suniljangid547.github.io/loan-payment-app/privacy-policy.html';
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
@@ -203,6 +205,11 @@ export default function ProfileScreen() {
           <ThemedText type="small" themeColor="textSecondary">
             {t('prof.disclaimer')}
           </ThemedText>
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => void Linking.openURL(PRIVACY_URL)}>
+            <ThemedText type="link">{t('prof.policy')}</ThemedText>
+          </Pressable>
         </Card>
       </ScrollView>
     </SafeAreaView>
