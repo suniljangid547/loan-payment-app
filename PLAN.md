@@ -201,13 +201,15 @@ All local-scheduled + user can quiet-hours; no server push needed (offline-safe)
 - Not a lender/RBI-regulated entity → clear disclaimer. No loan selling, no credit-score access claims. Insurance/bank-transfer = education only, no commissions unless registered later. Financial figures labeled "estimated, verify with lender."
 
 ## 14. Build phases
-| Phase | Scope | Time (solo + AI-assisted) |
-|-------|-------|---------------------------|
-| **M1 MVP** | Auth+i18n+theming, Loan CRUD (all modes+card), manual payments, Income CRUD+family tags, simple expenses+budgets, offline DB, progress dashboard | ~6 wks |
-| **M2 Brain** | Priority engine + reasons, allocation sheet, loan-closed redirect, short-month flow, reminders, emergency fund, insurance card | ~4 wks |
-| **M3 AI polish** | 12-mo plan + charts, LLM coach (Hinglish), receipt OCR, expense→loan coach, grocery memory, daily skill ideas | ~5 wks |
-| **M4 Launch** | Family sharing, Drive backup, paywall (RevenueCat), Play Store + TestFlight, ASO | ~3 wks |
-| **M5** | More countries/currencies, voice input, widget "aaj ka plan", WhatsApp-share plan card | ongoing |
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **M1 MVP** | Auth+i18n+theming, Loan CRUD (all modes+card), manual payments, Income CRUD+family tags, simple expenses+budgets, offline DB, progress dashboard | ✅ done |
+| **M2 Brain** | Priority engine + reasons, allocation sheet, loan-closed redirect, short-month flow, reminders, emergency fund, insurance card | ✅ done |
+| **M3 AI polish** | 12-mo plan + charts, LLM coach (Hinglish), receipt OCR, expense→loan coach, grocery memory, daily skill ideas | ✅ offline parts done (charts, coach, grocery, ideas) · ⏳ OCR (needs dev build) · ⏳ LLM coach (needs API key) |
+| **M4 Launch** | Family sharing, Drive backup, paywall (RevenueCat), Play Store + TestFlight, ASO | ✅ brand/icons/EAS/store-listing/backup-restore done · ⏳ family sharing (backend) · ⏳ paywall (RevenueCat) |
+| **M5** | More countries/currencies, voice input, widget "aaj ka plan", WhatsApp-share plan card | ✅ WhatsApp-share card done · ⏳ widget (native) |
+
+Migrations: DB v3 (fund_events, short_months, category_answers). Store listing: `STORE_LISTING.md`.
 
 ## 15. Success metrics
 - 7-day retention (core: paisa-aaya notification tap-rate), loans closed/user, avg interest saved reported, premium conversion from "12-month plan" viewers, family invites/user.

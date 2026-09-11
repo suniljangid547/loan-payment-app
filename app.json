@@ -49,7 +49,9 @@
       "expo-sqlite",
       "expo-localization",
       "expo-notifications",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
