@@ -107,6 +107,25 @@ export async function deleteLoan(db: SQLiteDatabase, id: number): Promise<void> 
   await db.runAsync('DELETE FROM loans WHERE id = ?', id);
 }
 
+/**
+ * Interest already covered by earlier payments in the same calendar month.
+ * Without this, a payment recorded in two chunks would charge the full
+ * month's interest twice (e.g. sekda 2k interest paid 1k+1k+1k extra →
+ * the extra must hit principal, not interest again).
+ */
+async function interestPaidThisMonth(
+  db: SQLiteDatabase,
+  loanId: number,
+  paidAt: string,
+): Promise<number> {
+  const r = await db.getFirstAsync<{ t: number | null }>(
+    'SELECT SUM(interest_part) AS t FROM payments WHERE loan_id = ? AND substr(paid_at,1,7) = ?',
+    loanId,
+    paidAt.slice(0, 7),
+  );
+  return r?.t ?? 0;
+}
+
 /** Records a payment, splits it into interest/principal, updates the loan. */
 export async function recordPayment(
   db: SQLiteDatabase,
@@ -117,7 +136,8 @@ export async function recordPayment(
 ): Promise<{ interestPart: number; principalPart: number; closed: boolean } | null> {
   const loan = await getLoan(db, loanId);
   if (!loan || amount <= 0) return null;
-  const due = Math.round(interestDue(loan));
+  const alreadyPaid = await interestPaidThisMonth(db, loanId, paidAt);
+  const due = Math.max(0, Math.round(interestDue(loan)) - alreadyPaid);
   const interestPart = Math.min(amount, due);
   const principalPart = Math.min(loan.principal_remaining, amount - interestPart);
   const newRemaining = loan.principal_remaining - principalPart;
@@ -156,9 +176,14 @@ export async function deletePayment(db: SQLiteDatabase, id: number, loanId: numb
   const loan = await getLoan(db, loanId);
   if (loan) {
     const newRemaining = loan.principal_remaining + p.principal_part;
+    // only reopen the loan if there is actually something left to repay —
+    // deleting a pure-interest payment on a closed loan must keep it closed
+    const reopen = newRemaining > 0;
     await db.runAsync(
-      `UPDATE loans SET principal_remaining=?, status='active', closed_at=NULL WHERE id=?`,
+      `UPDATE loans SET principal_remaining=?, status=?, closed_at=? WHERE id=?`,
       newRemaining,
+      reopen ? 'active' : loan.status,
+      reopen ? null : loan.closed_at,
       loanId,
     );
   }
