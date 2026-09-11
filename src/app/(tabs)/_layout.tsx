@@ -34,6 +34,10 @@ export default function TabsLayout() {
         options={{ title: t('tabs.expenses'), tabBarIcon: icon('food-variant') }}
       />
       <Tabs.Screen name="plan" options={{ title: t('tabs.plan'), tabBarIcon: icon('chart-line') }} />
+      <Tabs.Screen
+        name="profile"
+        options={{ title: t('tabs.profile'), tabBarIcon: icon('account-circle') }}
+      />
     </Tabs>
   );
 }

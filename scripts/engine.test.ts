@@ -6,6 +6,7 @@ import { rankLoans } from '../src/core/priority';
 import { spendingCoach, type CoachCategoryInput } from '../src/core/coach';
 import { dailyIdea, SKILL_KEYS } from '../src/core/ideas';
 import { groceryMemory } from '../src/core/grocery';
+import { validateBackup } from '../src/db/backup';
 import type { LoanRow } from '../src/core/types';
 
 const base: LoanRow = {
@@ -205,5 +206,23 @@ assert.strictEqual(
   null,
   'history too small',
 );
+
+// backup validation: shape checks, future-schema rejection, garbage rejection
+const good = {
+  app: 'loanpay',
+  schemaVersion: 3,
+  exportedAt: '2026-09-11',
+  settings: { name: 'Sunil' },
+  tables: { loans: [{ id: 1 }], payments: [] },
+};
+assert.ok(validateBackup(good));
+assert.strictEqual(validateBackup({ ...good, app: 'other' }), null);
+assert.strictEqual(validateBackup({ ...good, schemaVersion: 99 }), null);
+assert.strictEqual(validateBackup({ ...good, schemaVersion: 0 }), null);
+assert.strictEqual(validateBackup({ ...good, tables: { loans: 'nope' } }), null);
+assert.strictEqual(validateBackup('junk'), null);
+assert.strictEqual(validateBackup(null), null);
+// rows optional per table
+assert.ok(validateBackup({ ...good, tables: {} }));
 
 console.log('core engine tests passed ✓');
