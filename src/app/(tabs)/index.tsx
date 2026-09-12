@@ -17,6 +17,9 @@ import { formatMoney, toMinor } from '@/core/money';
 import { rankLoans } from '@/core/priority';
 import { activeLoans } from '@/core/types';
 import { Spacing } from '@/constants/theme';
+import { buildWidgetPayload, voiceHint } from '@/core/widget';
+import { coachLines } from '@/core/llmCoach';
+import { File, Paths } from 'expo-file-system';
 import {
   addFundTxn,
   debtTotals,
@@ -37,7 +40,7 @@ export default function DashboardScreen() {
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const colors = useTheme();
-  const { onboarded, name, currency, hasInsurance, insuranceDismissed, fundTarget, skills } =
+  const { onboarded, name, currency, language, hasInsurance, insuranceDismissed, fundTarget, skills } =
     useSettings();
   const update = useSettings((s) => s.update);
   const today = isoDate();
@@ -117,6 +120,36 @@ export default function DashboardScreen() {
       })
     : null;
   const idea = dailyIdea(skills, loans, today);
+  // M3: offline Hinglish coach (hallucination-safe) — explains numbers, never invents them
+  const rankedTop = ranked[0] ?? null;
+  const coachHint = coach && rankedTop ? coachLines({
+    topLoan: rankedTop.loan,
+    monthlyInterest: rankedTop.monthlyInterest,
+    reasons: rankedTop.reasons.map((k) => t(k)),
+    extra: coach.cut,
+    interestSaved: coach.interestSaved,
+    monthsSaved: coach.monthsSaved ?? coach.closesIn ?? null,
+    currency,
+    lang: (language as 'en' | 'hi' | 'hinglish') ?? 'en',
+  }) : null;
+  // M5: persist a widget payload for the native widget host (when added)
+  // Pure JSON write to cache — safe on Expo Go, zero native requirement.
+  if (data) {
+    try {
+      const payload = buildWidgetPayload({
+        loans: data.loans,
+        totalRemaining,
+        todayIso: today,
+        topReason: rankedTop ? rankedTop.reasons.map((k) => t(k)).join(' · ') : undefined,
+        ideaLabel: idea ? t(`idea.${idea.skillKey}`) : null,
+        coachLine: coachHint?.[0]?.text ?? null,
+        currency,
+      });
+      const f = new File(Paths.cache, 'loanpay-widget.json');
+      f.create({ overwrite: true });
+      f.write(JSON.stringify(payload));
+    } catch { /* ignore — best-effort */ }
+  }
   const answerGrocery = async (answerKey: 'half' | 'all', amount: number) => {
     if (!data?.grocery) return;
     await saveCategoryAnswer(db, month, data.grocery.id, answerKey);
@@ -265,6 +298,10 @@ export default function DashboardScreen() {
                 })}
               </ThemedText>
             ) : null}
+            {coachHint ? coachHint.slice(0, 2).map((l) => (
+              <ThemedText key={l.text} type="small" themeColor="textSecondary">{l.emoji} {l.text}</ThemedText>
+            )) : null}
+            <ThemedText type="small" themeColor="textSecondary">{voiceHint(language)}</ThemedText>
             <Button
               label={t('redirect.show')}
               variant="ghost"

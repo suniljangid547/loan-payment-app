@@ -1,14 +1,18 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useTranslation } from 'react-i18next';
+import * as ImagePicker from 'expo-image-picker';
 
 import { Badge, Button, Card, Chips, Field, ProgressBar, SectionHeader } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { addMonths, currentMonthLabel, isoDate, monthOf } from '@/core/dates';
 import { formatMoney, toMinor } from '@/core/money';
+import { parseReceiptText } from '@/core/ocr';
+import { isPremium, paywallCopy } from '@/core/paywall';
+import { voiceHint } from '@/core/widget';
 import { PAY_METHODS, type PayMethod } from '@/core/types';
 import { Spacing } from '@/constants/theme';
 import {
@@ -21,7 +25,7 @@ import {
 } from '@/db/repos';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
-import { useSettings } from '@/store/settings';
+import { useSettings, type PersistedSettings } from '@/store/settings';
 
 export default function ExpensesScreen() {
   const { t } = useTranslation();
@@ -51,6 +55,10 @@ export default function ExpensesScreen() {
   const [note, setNote] = useState('');
   const [budgetFor, setBudgetFor] = useState<number | null>(null);
   const [budgetStr, setBudgetStr] = useState('');
+  const [receiptUri, setReceiptUri] = useState<string | null>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const settings = useSettings();
+  const wallCopy = paywallCopy(settings.language);
 
   const categories = data?.categories ?? [];
   const chosenCat = catId ?? categories[0]?.id ?? null;
@@ -127,7 +135,67 @@ export default function ExpensesScreen() {
           onChange={setMethod}
           options={PAY_METHODS.map((m) => ({ value: m, label: t(`paym.${m}`) }))}
         />
-        <Field label={t('common.note')} value={note} onChangeText={setNote} />
+        <Field label={t('common.note')} value={note} onChangeText={setNote} hint={voiceHint(settings.language)} />
+        {receiptUri ? (
+          <Image source={{ uri: receiptUri }} style={{ width: '100%', height: 180, borderRadius: 12, backgroundColor: colors.backgroundSelected }} resizeMode="cover" />
+        ) : null}
+        <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+          <Button
+            label={`📷 ${t('exp.add')}`}
+            variant="secondary"
+            size="sm"
+            style={{ flex: 1 }}
+            onPress={async () => {
+              const currentMonth = monthOf(isoDate());
+              const freeLimit = 5;
+              const s = useSettings.getState() as PersistedSettings & { receiptScansThisMonth: number; receiptScanMonth: string | null };
+              const inMonth = s.receiptScanMonth === currentMonth;
+              const used = inMonth ? s.receiptScansThisMonth : 0;
+              if (!isPremium() && used >= freeLimit) {
+                setPaywallOpen(true);
+                return;
+              }
+              const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+              if (res.canceled || !res.assets[0]) return;
+              const uri = res.assets[0].uri;
+              setReceiptUri(uri);
+              const fileName = (res.assets[0].fileName ?? '') as string;
+              const parsed = parseReceiptText(fileName);
+              if (parsed.amount) setAmtStr(String(parsed.amount / 100));
+              if (!isPremium()) {
+                useSettings.getState().update({
+                  receiptScansThisMonth: used + 1,
+                  receiptScanMonth: currentMonth,
+                } as Partial<PersistedSettings>);
+              }
+            }}
+          />
+          <Button
+            label="📸 Camera"
+            variant="secondary"
+            size="sm"
+            style={{ flex: 1 }}
+            onPress={async () => {
+              const perm = await ImagePicker.requestCameraPermissionsAsync();
+              if (!perm.granted) return;
+              const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.85 });
+              if (res.canceled || !res.assets[0]) return;
+              setReceiptUri(res.assets[0].uri);
+            }}
+          />
+        </View>
+        {paywallOpen ? (
+          <Card style={{ backgroundColor: colors.warningSoft, borderColor: colors.warning }}>
+            <ThemedText type="smallBold">{wallCopy.title}</ThemedText>
+            {wallCopy.bullets.map((b) => (
+              <ThemedText key={b} type="small">• {b}</ThemedText>
+            ))}
+            <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+              <Button label={wallCopy.cta} size="sm" style={{ flex: 1 }} onPress={() => { useSettings.getState().update({ premium: true } as Partial<PersistedSettings>); setPaywallOpen(false); }} />
+              <Button label={wallCopy.later} variant="ghost" size="sm" style={{ flex: 1 }} onPress={() => setPaywallOpen(false)} />
+            </View>
+          </Card>
+        ) : null}
         <Button label={t('exp.add')} onPress={addExpense} />
       </Card>
 

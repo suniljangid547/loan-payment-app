@@ -12,6 +12,9 @@ export interface BackupSettings {
   insuranceDismissed?: boolean;
   fundTarget?: number | null;
   skills?: string[];
+  premium?: boolean;
+  receiptScansThisMonth?: number;
+  receiptScanMonth?: string | null;
 }
 
 export interface BackupFile {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,8 @@ import * as DocumentPicker from 'expo-document-picker';
 
 import { Button, Card, SectionHeader, Select } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
+import { voiceHint } from '@/core/widget';
+import { paywallCopy } from '@/core/paywall';
 import { isoDate } from '@/core/dates';
 import { exportBackup, restoreBackup, validateBackup, type BackupSettings } from '@/db/backup';
 import { DATABASE_VERSION } from '@/db/schema';
@@ -23,6 +25,7 @@ import {
   currencyForCountry,
   useSettings,
   type LangDef,
+  type PersistedSettings,
 } from '@/store/settings';
 
 const ALL_LANGS: LangDef[] = Object.values(
@@ -140,7 +143,7 @@ export default function ProfileScreen() {
 
   const applySettings = (s: BackupSettings | null) => {
     if (!s) return;
-    update({
+    const next: Partial<PersistedSettings> = {
       onboarded: typeof s.onboarded === 'boolean' ? s.onboarded : settings.onboarded,
       name: typeof s.name === 'string' ? s.name : settings.name,
       language: typeof s.language === 'string' ? s.language : settings.language,
@@ -152,8 +155,35 @@ export default function ProfileScreen() {
       skills: Array.isArray(s.skills)
         ? s.skills.filter((x): x is string => typeof x === 'string')
         : [],
-    });
+    };
+    if (typeof (s as unknown as Record<string, unknown>).premium === 'boolean') {
+      (next as Record<string, unknown>).premium = (s as unknown as Record<string, unknown>).premium;
+    }
+    update(next);
     if (typeof s.language === 'string') void i18n.changeLanguage(s.language);
+  };
+
+  const premium = (settings as unknown as { premium?: boolean }).premium ?? false;
+  const wallCopy = paywallCopy(settings.language);
+
+  const shareFamily = async () => {
+    try {
+      const backup = await exportBackup(db, {
+        onboarded: settings.onboarded,
+        name: settings.name,
+        language: settings.language,
+        country: settings.country,
+        currency: settings.currency,
+        hasInsurance: settings.hasInsurance,
+        insuranceDismissed: settings.insuranceDismissed,
+        fundTarget: settings.fundTarget,
+        skills: settings.skills,
+      });
+      const payload = JSON.stringify({ ...backup, _share: 'family-readonly', sharedAt: isoDate() }, null, 2);
+      await Share.share({ message: payload.slice(0, 8000) });
+    } catch {
+      Alert.alert(t('misc.error'));
+    }
   };
 
   const countryDef = countryByCode(settings.country);
@@ -192,9 +222,24 @@ export default function ProfileScreen() {
         <Card>
           <Button label={t('prof.export')} onPress={exportNow} loading={busy} />
           <Button label={t('prof.import')} variant="secondary" onPress={importNow} />
+          <Button label="Family read-only share (WhatsApp)" variant="secondary" onPress={shareFamily} />
           <ThemedText type="small" themeColor="textSecondary">
             {t('prof.privacy')}
           </ThemedText>
+        </Card>
+
+        <SectionHeader title={premium ? 'Premium ✓' : 'Premium'} />
+        <Card style={premium ? { backgroundColor: colors.accentSoft, borderColor: colors.accent } : undefined}>
+          <ThemedText type="smallBold">{wallCopy.title}</ThemedText>
+          {wallCopy.bullets.map((b) => (
+            <ThemedText key={b} type="small">• {b}</ThemedText>
+          ))}
+          {premium ? (
+            <ThemedText type="small" style={{ color: colors.success }}>Active on this phone — no key needed.</ThemedText>
+          ) : (
+            <Button label={wallCopy.cta} onPress={() => update({ premium: true } as Partial<PersistedSettings>)} />
+          )}
+          <ThemedText type="small" themeColor="textSecondary">{voiceHint(settings.language)}</ThemedText>
         </Card>
 
         <SectionHeader title={t('prof.about')} />

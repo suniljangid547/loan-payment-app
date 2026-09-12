@@ -29,6 +29,11 @@ export interface PersistedSettings {
   fundTarget: number | null;
   /** side-income skill keys (SkillKey in core/ideas) */
   skills: string[];
+  /** local premium entitlement — RevenueCat can replace this later */
+  premium: boolean;
+  /** how many receipt scans used this month (free tier) */
+  receiptScansThisMonth: number;
+  receiptScanMonth: string | null;
 }
 
 const KEY = 'loanpay.settings.v1';
@@ -69,6 +74,9 @@ const DEFAULTS: PersistedSettings = {
   insuranceDismissed: false,
   fundTarget: null,
   skills: [],
+  premium: false,
+  receiptScansThisMonth: 0,
+  receiptScanMonth: null,
 };
 
 function load(): PersistedSettings {

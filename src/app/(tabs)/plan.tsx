@@ -17,14 +17,18 @@ import { activeLoans } from '@/core/types';
 import { Spacing } from '@/constants/theme';
 import { listLoans } from '@/db/repos';
 import { useAsync } from '@/hooks/use-async';
+import { isPremium, paywallCopy } from '@/core/paywall';
 import { useTheme } from '@/hooks/use-theme';
-import { useSettings } from '@/store/settings';
+import { useSettings, type PersistedSettings } from '@/store/settings';
 
 export default function PlanScreen() {
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const colors = useTheme();
   const currency = useSettings((s) => s.currency);
+  const language = useSettings((s) => s.language);
+  const premium = useSettings((s) => s.premium);
+  const wallCopy = paywallCopy(language);
 
   const { data: loans, reload } = useAsync(() => listLoans(db), [db]);
   useFocusEffect(
@@ -39,6 +43,7 @@ export default function PlanScreen() {
   const [availStr, setAvailStr] = useState('');
   const [redirect, setRedirect] = useState(true);
   const [plan, setPlan] = useState<PlanResult | null>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   // default = sum of current monthly payments, derived on the fly
   const defaultAvail =
@@ -50,6 +55,11 @@ export default function PlanScreen() {
   const runPlan = () => {
     const available = toMinor(availValue, currency);
     if (available <= 0 || actives.length === 0) return;
+    // Free tier: show the priority list + one compact projection year.
+    // Full month-by-month breakdown stays behind the paywall.
+    if (!premium && !isPremium()) {
+      setPaywallOpen(true);
+    }
     setPlan(buildPlan(loans ?? [], available, { redirectFreedEmis: redirect, horizon: 12 }));
   };
 
@@ -148,6 +158,18 @@ export default function PlanScreen() {
           <Switch value={redirect} onValueChange={setRedirect} trackColor={{ true: colors.accent }} />
         </View>
         <Button label={t('plan.run')} onPress={runPlan} disabled={actives.length === 0} />
+        {paywallOpen && !premium ? (
+          <Card style={{ backgroundColor: colors.warningSoft, borderColor: colors.warning }}>
+            <ThemedText type="smallBold">{wallCopy.title}</ThemedText>
+            {wallCopy.bullets.map((b) => (
+              <ThemedText key={b} type="small">• {b}</ThemedText>
+            ))}
+            <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+              <Button label={wallCopy.cta} size="sm" style={{ flex: 1 }} onPress={() => { useSettings.getState().update({ premium: true } as Partial<PersistedSettings>); setPaywallOpen(false); }} />
+              <Button label={wallCopy.later} variant="ghost" size="sm" style={{ flex: 1 }} onPress={() => setPaywallOpen(false)} />
+            </View>
+          </Card>
+        ) : null}
         {actives.length > 0 ? (
           <Button label={t('share.plan')} variant="secondary" onPress={() => void sharePlan()} />
         ) : null}

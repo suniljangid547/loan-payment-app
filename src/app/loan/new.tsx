@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chips, Field, ScreenHeader } from '@/components/ui';
 import { addMonths, isoDate } from '@/core/dates';
 import { toMinor } from '@/core/money';
+import { voiceHint } from '@/core/widget';
 import {
   LOAN_MODES,
   LOAN_TYPES,
@@ -29,6 +30,7 @@ export default function LoanFormScreen() {
   const db = useSQLiteContext();
   const colors = useTheme();
   const currency = useSettings((s) => s.currency);
+  const language = useSettings((s) => s.language);
   const params = useLocalSearchParams<{ id?: string }>();
   const editingId = params.id ? Number(params.id) : null;
 
@@ -243,7 +245,7 @@ export default function LoanFormScreen() {
         ) : null}
 
         <Card>
-          <Field label={t('loan.purpose')} value={purpose} onChangeText={setPurpose} />
+          <Field label={t('loan.purpose')} value={purpose} onChangeText={setPurpose} hint={voiceHint(language)} />
           <Chips<'yes' | 'no'>
             label={t('loan.purposeDone')}
             value={regret ? 'no' : 'yes'}

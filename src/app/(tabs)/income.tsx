@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { isoDate, monthOf } from '@/core/dates';
 import { baselinePayment } from '@/core/interest';
 import { formatMoney, toMinor } from '@/core/money';
+import { voiceHint } from '@/core/widget';
 import { CADENCES, INCOME_TYPES, type Cadence, type IncomeType } from '@/core/types';
 import { activeLoans } from '@/core/types';
 import { Spacing } from '@/constants/theme';
@@ -32,7 +33,7 @@ export default function IncomeScreen() {
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const colors = useTheme();
-  const { name, currency } = useSettings();
+  const { name, currency, language } = useSettings();
   const month = monthOf(isoDate());
 
   const { data, reload } = useAsync(async () => {
@@ -136,7 +137,7 @@ export default function IncomeScreen() {
             <Field label={t('common.amount')} value={recAmt} onChangeText={setRecAmt} keyboardType="decimal-pad" placeholder="0" />
           </View>
           <View style={{ flex: 1 }}>
-            <Field label={`${t('common.note')} (${t('common.name')})`} value={recNote} onChangeText={setRecNote} />
+            <Field label={`${t('common.note')} (${t('common.name')})`} value={recNote} onChangeText={setRecNote} hint={voiceHint(language)} />
           </View>
         </View>
         <Button label={t('inc.record')} onPress={record} />
